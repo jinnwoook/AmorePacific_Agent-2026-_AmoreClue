@@ -1,4 +1,4 @@
-# Trend Insight Agent Dashboard
+# AMORE CLUE Dashboard
 
 화장품 산업 도메인 트렌드 분석 대시보드 MVP
 
