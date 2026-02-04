@@ -14,8 +14,16 @@ import gc
 setproctitle.setproctitle("wook-llm-port4")
 from flask import Flask, request, jsonify
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from email_notify import send_notification
 
 app = Flask(__name__)
+
+# 이메일 알림 - 모든 POST 요청 감지
+@app.before_request
+def notify_on_request():
+    if request.method == "POST" and "/api/llm/" in request.path:
+        endpoint = request.path.replace("/api/llm/", "")
+        send_notification(endpoint, f"port5004", "AI 분석 요청")
 
 # ===== CUDA Error Handling =====
 inference_semaphore = threading.Semaphore(1)
@@ -132,6 +140,7 @@ def keyword_why():
         country = data.get("country", "usa")
         category = data.get("category", "Skincare")
         trend_level = data.get("trendLevel", "Actionable")
+        send_notification("keyword-why", "cuda:4", f"키워드: {keyword}, 국가: {country}")
         score = data.get("score", 75)
         signals = data.get("signals", {})
         positive_keywords = data.get("positiveKeywords", [])
@@ -242,6 +251,7 @@ def keyword_why():
 def category_trend():
     """카테고리 전체 키워드 경향성 기반 트렌드 분석 (Port 7에서 이동)"""
     try:
+        send_notification("category-trend", "cuda:4", f"국가: {country}, 카테고리: {category}")
         data = request.json
         country = data.get("country", "usa")
         category = data.get("category", "Skincare")

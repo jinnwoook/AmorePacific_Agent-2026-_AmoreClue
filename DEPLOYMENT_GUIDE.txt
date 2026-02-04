@@ -1,0 +1,249 @@
+================================================================================
+AMORE CLUE 배포 가이드
+================================================================================
+최종 업데이트: 2026-02-02
+작성자: Claude Code
+
+================================================================================
+1. 전체 아키텍처
+================================================================================
+
+[Firebase Hosting] ←→ [localhost.run 터널] ←→ [로컬 서버들]
+       ↓                                              ↓
+  https://amore-fc103.web.app              - Node.js 메인 서버 (5000)
+                                           - Node.js K-Beauty 서버 (5002)
+                                           - Python LLM 서버 4개 (5004-5007)
+                                           - MongoDB (27017)
+
+================================================================================
+2. 서버 구성
+================================================================================
+
+[메인 API 서버]
+- 포트: 5000
+- 파일: /srv2/jinwook/amore_clue/server/index.js
+- DB: 로컬 MongoDB (mongodb://localhost:27017, DB명: amore)
+- 환경변수: /srv2/jinwook/amore_clue/server/.env
+
+[K-Beauty API 서버]
+- 포트: 5002
+- 파일: /srv2/jinwook/amore_clue/server/kbeauty_atlas_server.js
+- DB: MongoDB Atlas (amore_trend_db)
+- 연결 문자열: mongodb+srv://amore_admin:amore123@cluster0.mhfe3ia.mongodb.net
+
+[LLM 서버 4개]
+- 포트 5004: llm_server_port4.py (cuda:4) - keyword-why, category-trend, kbeauty-trends
+- 포트 5005: llm_server_port5.py (cuda:5) - sns-analysis, whitespace-product
+- 포트 5006: llm_server_port6.py (cuda:6) - country-strategy, category-strategy
+- 포트 5007: llm_server_port7.py (cuda:7) - chatbot, VLM (Qwen2-VL Lazy Loading)
+- 모델: LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct
+- Conda 환경: amore_clue
+
+[MongoDB]
+- 포트: 27017
+- 실행 파일: /home/jinwook/mongodb/bin/mongod
+- 데이터 경로: /home/jinwook/mongodb/data (기존 데이터 있음)
+
+================================================================================
+3. 배포 순서 (전체 재시작 시)
+================================================================================
+
+### 3.1 MongoDB 시작
+```bash
+cd /srv2/jinwook/amore_clue/server
+/home/jinwook/mongodb/bin/mongod --dbpath /home/jinwook/mongodb/data --port 27017 --fork --logpath /srv2/jinwook/amore_clue/server/mongodb.log
+```
+
+### 3.2 Node.js 서버 시작
+```bash
+cd /srv2/jinwook/amore_clue/server
+nohup node index.js > server.log 2>&1 &
+nohup node kbeauty_atlas_server.js > kbeauty_atlas.log 2>&1 &
+```
+
+### 3.3 LLM 서버 시작 (Conda 환경 필요)
+```bash
+cd /srv2/jinwook/amore_clue/server
+source ~/anaconda3/etc/profile.d/conda.sh && conda activate amore_clue
+nohup python llm_server_port4.py > llm4.log 2>&1 &
+nohup python llm_server_port5.py > llm5.log 2>&1 &
+nohup python llm_server_port6.py > llm6.log 2>&1 &
+nohup python llm_server_port7.py > llm7.log 2>&1 &
+```
+※ 모델 로딩에 약 30-60초 소요
+
+### 3.4 localhost.run 터널 시작
+```bash
+ssh -o StrictHostKeyChecking=no -R 80:localhost:5000 localhost.run > /tmp/tunnel_5000.log 2>&1 &
+ssh -o StrictHostKeyChecking=no -R 80:localhost:5002 localhost.run > /tmp/tunnel_5002.log 2>&1 &
+sleep 12
+# 터널 URL 확인
+grep "lhr.life" /tmp/tunnel_5000.log | tail -1
+grep "lhr.life" /tmp/tunnel_5002.log | tail -1
+```
+※ 터널 URL은 매번 변경됨 (예: https://xxxxx.lhr.life)
+
+### 3.5 .env.production 업데이트
+```bash
+cd /srv2/jinwook/amore_clue
+# 위에서 확인한 터널 URL로 수정
+cat > .env.production << EOF
+# Production environment variables for Vite build
+VITE_API_BASE_URL=https://[메인API터널URL]/api
+VITE_KBEAUTY_API_BASE_URL=https://[K-Beauty터널URL]/api
+EOF
+```
+
+### 3.6 빌드 및 Firebase 배포
+```bash
+cd /srv2/jinwook/amore_clue
+npm run build
+firebase deploy --only hosting --project amore-fc103
+```
+
+================================================================================
+4. 상태 확인 명령어
+================================================================================
+
+### 포트 확인
+```bash
+lsof -i :5000 -i :5002 -i :5004 -i :5005 -i :5006 -i :5007 | grep LISTEN
+```
+
+### 서버 헬스체크
+```bash
+curl http://localhost:5000/api/health
+curl http://localhost:5002/api/health
+curl http://localhost:5004/api/llm/health
+curl http://localhost:5005/api/llm/health
+curl http://localhost:5006/api/llm/health
+curl http://localhost:5007/api/llm/health
+```
+
+### MongoDB 확인
+```bash
+pgrep -a mongod
+```
+
+### 터널 확인
+```bash
+ps aux | grep "localhost.run" | grep -v grep
+```
+
+================================================================================
+5. 서버 종료 명령어
+================================================================================
+
+### Node.js 서버 종료
+```bash
+pkill -f "node index.js"
+pkill -f "kbeauty_atlas_server"
+```
+
+### LLM 서버 종료
+```bash
+fuser -k 5004/tcp 5005/tcp 5006/tcp 5007/tcp
+# 또는
+pkill -f "llm_server_port"
+```
+
+### MongoDB 종료
+```bash
+pkill -f mongod
+```
+
+### 터널 종료
+```bash
+pkill -f "localhost.run"
+```
+
+================================================================================
+6. 환경 설정 파일 위치
+================================================================================
+
+[서버 환경변수]
+/srv2/jinwook/amore_clue/server/.env
+```
+GEMINI_API_KEY=YOUR_GEMINI_API_KEY_HERE
+MONGODB_URI=mongodb://localhost:27017
+MONGODB_DATABASE=amore
+PORT=5000
+LLM_SERVER_GPU0=http://localhost:5004
+LLM_SERVER_GPU1=http://localhost:5005
+LLM_SERVER_GPU2=http://localhost:5006
+LLM_SERVER_GPU3=http://localhost:5007
+```
+
+[프론트엔드 환경변수]
+/srv2/jinwook/amore_clue/.env.production
+```
+VITE_API_BASE_URL=https://[터널URL]/api
+VITE_KBEAUTY_API_BASE_URL=https://[터널URL]/api
+```
+
+[Firebase 설정]
+/srv2/jinwook/amore_clue/.firebaserc - 프로젝트: amore-fc103
+/srv2/jinwook/amore_clue/firebase.json - 호스팅 설정
+
+================================================================================
+7. 이메일 알림 설정 (선택사항)
+================================================================================
+
+LLM 서버에서 AI 분석 요청 시 이메일 알림 전송
+
+[설정 파일]
+/srv2/jinwook/amore_clue/server/email_notify.py
+
+[Gmail 정보]
+- 이메일: royaljin831@gmail.com
+- 앱 비밀번호: dxurneswemhigozd
+
+[알림 로그]
+/srv2/jinwook/amore_clue/server/email_notify.log
+
+================================================================================
+8. 트러블슈팅
+================================================================================
+
+### 터널이 작동 안 할 때
+1. 기존 터널 프로세스 종료: pkill -f "localhost.run"
+2. 새 터널 시작
+3. 새 URL로 .env.production 업데이트
+4. 빌드 및 재배포
+
+### LLM 서버가 시작 안 될 때
+1. 포트 사용 중인지 확인: lsof -i :5004
+2. 사용 중이면 종료: fuser -k 5004/tcp
+3. Conda 환경 활성화 확인: conda activate amore_clue
+4. 로그 확인: cat llm4.log
+
+### MongoDB 연결 실패 시
+1. MongoDB 실행 확인: pgrep -a mongod
+2. 실행 안 되어 있으면 시작
+3. 데이터 경로 확인: /home/jinwook/mongodb/data
+
+### Cloudflare 터널 대안 (localhost.run 장애 시)
+현재 Cloudflare quick tunnel (cloudflared tunnel --url) 서비스 장애 있음
+대안: localhost.run 사용 (SSH 기반)
+
+================================================================================
+9. 주요 URL
+================================================================================
+
+- Firebase 콘솔: https://console.firebase.google.com/project/amore-fc103
+- 배포된 사이트: https://amore-fc103.web.app
+- MongoDB Atlas: https://cloud.mongodb.com (amore_trend_db용)
+
+================================================================================
+10. GPU 정보
+================================================================================
+
+서버에 NVIDIA RTX A6000 8장 장착
+- cuda:4 ~ cuda:7 사용 중 (LLM 서버용)
+- 각 GPU 메모리: 48GB
+
+확인 명령어: nvidia-smi
+
+================================================================================
+END OF DOCUMENT
+================================================================================

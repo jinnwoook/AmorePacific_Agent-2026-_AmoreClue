@@ -138,14 +138,14 @@ export default function WelcomeModal() {
                     </div>
                   </div>
 
-                  {/* 이미지 오류 안내 */}
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                  {/* 서버 상태 안내 */}
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                     <div className="flex items-start gap-3">
-                      <span className="text-lg">🖼️</span>
+                      <span className="text-lg">✅</span>
                       <div>
-                        <p className="font-semibold text-slate-700 mb-1">제품 이미지 안내</p>
-                        <p className="text-slate-600 leading-relaxed">
-                          일부 제품 이미지가 표시되지 않는 경우가 있습니다. URL 오류를 순차적으로 수정 중입니다.
+                        <p className="font-semibold text-green-800 mb-1">서버 복구 완료</p>
+                        <p className="text-green-700 leading-relaxed">
+                          <span className="font-bold">데모 정상 작동!</span> 모든 기능을 사용하실 수 있습니다.
                         </p>
                       </div>
                     </div>

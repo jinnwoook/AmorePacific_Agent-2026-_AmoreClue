@@ -11,9 +11,17 @@ import threading
 import time
 import gc
 from flask import Flask, request, jsonify
+from email_notify import send_notification
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 app = Flask(__name__)
+
+# 이메일 알림 - 모든 POST 요청 감지
+@app.before_request
+def notify_on_request():
+    if request.method == "POST" and "/api/llm/" in request.path:
+        endpoint = request.path.replace("/api/llm/", "")
+        send_notification(endpoint, f"port5006", "AI 분석 요청")
 
 # ===== CUDA Error Handling =====
 inference_semaphore = threading.Semaphore(1)

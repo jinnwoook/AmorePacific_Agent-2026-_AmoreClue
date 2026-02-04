@@ -16,10 +16,18 @@ import time
 import gc
 setproctitle.setproctitle("wook-llm-port7")
 from flask import Flask, request, jsonify
+from email_notify import send_notification
 from transformers import AutoModelForCausalLM, AutoTokenizer, Qwen2VLForConditionalGeneration, AutoProcessor
 from PIL import Image
 
 app = Flask(__name__)
+
+# 이메일 알림 - 모든 POST 요청 감지
+@app.before_request
+def notify_on_request():
+    if request.method == "POST" and "/api/llm/" in request.path:
+        endpoint = request.path.replace("/api/llm/", "")
+        send_notification(endpoint, f"port5007", "AI 분석 요청")
 
 # ===== CUDA Error Handling =====
 # 동시 요청 제한 (GPU 충돌 방지)
