@@ -36,6 +36,21 @@
 
 ---
 
+## 🌐 Live Demo
+
+<div align="center">
+  <a href="https://amore-fc103.web.app/" target="_blank">
+    <img src="public/images/demo_screenshot.png" alt="AMORE CLUE Live Demo" width="900">
+  </a>
+
+  <br><br>
+
+  [![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-amore--fc103.web.app-FF69B4?style=for-the-badge)](https://amore-fc103.web.app/)
+
+</div>
+
+---
+
 ## 🎯 Overview
 
 **AMORE CLUE**는 글로벌 화장품 시장의 트렌드를 실시간으로 분석하고, AI 기반 인사이트를 제공하는 종합 대시보드 플랫폼입니다.
